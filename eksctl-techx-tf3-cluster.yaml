@@ -1,0 +1,40 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: techx-tf3
+  region: us-east-1
+  version: "1.30"
+
+autoModeConfig:
+  enabled: false
+
+iam:
+  withOIDC: true
+
+managedNodeGroups:
+  - name: ng-core
+    instanceType: t3.large
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 3
+    volumeSize: 80
+    privateNetworking: false
+    amiFamily: AmazonLinux2023
+    labels:
+      workload: techx
+    tags:
+      Name: techx-tf3-ng-core
+      Environment: phase3
+      Team: TF3
+      Project: techx-corp
+
+addons:
+  - name: vpc-cni
+  - name: coredns
+  - name: kube-proxy
+  - name: aws-ebs-csi-driver
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
