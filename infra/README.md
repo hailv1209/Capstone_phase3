@@ -215,6 +215,12 @@ Lệnh này sẽ gỡ các resource do Terraform quản lý như VPC, EKS, node 
 
 ## 9.1 Troubleshooting nhanh
 
+Nếu `terraform apply` ở phase Helm bị lỗi kiểu:
+
+- `Kubernetes cluster unreachable: the server has asked for the client to provide credentials`
+
+thì hãy pull bản mới nhất của repo rồi chạy lại `.\deploy.ps1 -SkipBuild`. Repo hiện đã chuyển provider `helm` và `kubernetes` sang cơ chế `aws eks get-token` động để tránh token EKS hết hạn giữa lúc apply kéo dài.
+
 Nếu `deploy.ps1` dừng ở bước Docker với lỗi kiểu:
 
 - `Internal Server Error for API route ... dockerDesktopLinuxEngine`

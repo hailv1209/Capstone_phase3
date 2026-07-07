@@ -247,6 +247,7 @@ Sau đó chạy GitHub Actions `Build Platform To ECR`, rồi:
 3. Nếu `terraform destroy` xóa luôn ECR, bạn bắt buộc phải push lại image trước khi deploy app.
 4. Baseline release hiện bật `flagd-ui` sidecar để nhóm có thể vào UI local trong cluster khi cần quan sát hoặc double-check trước khi BTC thao tác với flag trung tâm.
 5. Nếu `terraform destroy` fail ở ECR vì repo không rỗng, cần xóa image trong ECR trước rồi destroy lại.
+6. Nếu phase deploy Helm báo `Kubernetes cluster unreachable: the server has asked for the client to provide credentials`, hãy pull bản mới nhất của repo rồi chạy lại. Provider đã được đổi sang cơ chế lấy token EKS động để tránh hết hạn token giữa lúc apply kéo dài.
 
 ## 10. Câu trả lời ngắn nhất
 
