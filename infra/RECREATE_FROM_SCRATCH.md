@@ -126,6 +126,8 @@ Script sẽ tự làm:
 6. deploy Helm release
 7. chờ rollout workload chính
 
+Neu lan deploy truoc do bi fail giua chung va Helm release bi ket `pending-install` hoac `pending-upgrade`, `deploy.ps1 -SkipBuild` hien tai se tu thu gom release cu roi cai lai clean, khong can import/remove state bang tay nua.
+
 ### Bước 3: kiểm tra sau deploy
 
 ```powershell
@@ -248,6 +250,7 @@ Sau đó chạy GitHub Actions `Build Platform To ECR`, rồi:
 4. Baseline release hiện bật `flagd-ui` sidecar để nhóm có thể vào UI local trong cluster khi cần quan sát hoặc double-check trước khi BTC thao tác với flag trung tâm.
 5. Nếu `terraform destroy` fail ở ECR vì repo không rỗng, cần xóa image trong ECR trước rồi destroy lại.
 6. Nếu phase deploy Helm báo `Kubernetes cluster unreachable: the server has asked for the client to provide credentials`, hãy pull bản mới nhất của repo rồi chạy lại. Provider đã được đổi sang cơ chế lấy token EKS động để tránh hết hạn token giữa lúc apply kéo dài.
+7. Ban image `1.0-flagd-ui` hien tai van deploy duoc voi `-SkipBuild` vi Terraform da override command/env de chay dung Phoenix release. Neu build image moi tu source thi Dockerfile trong repo da duoc sua de su dung command dung mac dinh.
 
 ## 10. Câu trả lời ngắn nhất
 

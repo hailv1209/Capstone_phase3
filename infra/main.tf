@@ -165,6 +165,55 @@ EOT
               }
             ]),
           ]
+          sidecarContainers = [
+            {
+              name = "flagd-ui"
+              useDefault = {
+                env = true
+              }
+              command = ["/app/bin/flagd_ui", "start"]
+              service = {
+                port = 4000
+              }
+              env = [
+                {
+                  name  = "FLAGD_METRICS_EXPORTER"
+                  value = "otel"
+                },
+                {
+                  name  = "OTEL_EXPORTER_OTLP_ENDPOINT"
+                  value = "http://$(OTEL_COLLECTOR_NAME):4318"
+                },
+                {
+                  name  = "FLAGD_UI_PORT"
+                  value = "4000"
+                },
+                {
+                  name  = "SECRET_KEY_BASE"
+                  value = "yYrECL4qbNwleYInGJYvVnSkwJuSQJ4ijPTx5tirGUXrbznFIBFVJdPl5t6O9ASw"
+                },
+                {
+                  name  = "PHX_HOST"
+                  value = "localhost"
+                },
+                {
+                  name  = "PHX_SERVER"
+                  value = "true"
+                }
+              ]
+              resources = {
+                limits = {
+                  memory = "250Mi"
+                }
+              }
+              volumeMounts = [
+                {
+                  name      = "config-rw"
+                  mountPath = "/app/data"
+                }
+              ]
+            }
+          ]
         }
         shipping = {
           imageOverride = {

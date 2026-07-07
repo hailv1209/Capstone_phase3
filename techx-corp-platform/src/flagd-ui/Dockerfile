@@ -91,6 +91,8 @@ ENV MIX_ENV="prod"
 # Only copy the final release from the build stage
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/flagd_ui ./
 
+ENV PHX_SERVER=true
+
 EXPOSE ${FLAGD_UI_PORT}
 
 # If using an environment that doesn't automatically reap zombie processes, it is
@@ -98,4 +100,4 @@ EXPOSE ${FLAGD_UI_PORT}
 # above and adding an entrypoint. See https://github.com/krallin/tini for details
 # ENTRYPOINT ["/tini", "--"]
 
-CMD ["/app/bin/server"]
+CMD ["/app/bin/flagd_ui", "start"]

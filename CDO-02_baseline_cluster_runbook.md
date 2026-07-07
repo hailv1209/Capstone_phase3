@@ -13,6 +13,17 @@ Runbook này ghi lại cách nhóm CDO-02 đã dựng baseline Phase 3 lên EKS 
 
 Runbook này ưu tiên tính thực chiến. Nếu lý thuyết và thực tế khác nhau, hãy làm theo phần "thực tế đã chạy".
 
+## 1.1. Trang thai repo hien tai
+
+Tinh den lan cap nhat gan nhat:
+
+- `shipping` khong con dung runtime hotfix trong baseline mac dinh nua
+- baseline dang dung image `shipping` chuan tu ECR cua team voi tag `1.0-shipping`
+- `flagd-ui` da duoc bat lai de nhom co the port-forward va mo UI local khi can
+- `deploy.ps1 -SkipBuild` da tu verify image ECR, cap nhat kubeconfig, va tu recover neu release Helm cu bi ket `pending-*`
+
+Neu ban gap tai lieu cu noi rang baseline van phu thuoc `shipping hotfix`, hay uu tien thong tin trong muc nay va trong folder `infra/`.
+
 ## 2. Đường dẫn repo hiện tại
 
 Repo Phase 3 đã được tách ra khỏi workspace cũ và đặt tại:

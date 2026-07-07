@@ -201,8 +201,10 @@ Lệnh này sẽ gỡ các resource do Terraform quản lý như VPC, EKS, node 
 - `deploy.ps1` dùng cách login ECR ổn định hơn trên PowerShell
 - `deploy.ps1 -SkipBuild` không còn yêu cầu Docker local
 - `deploy.ps1 -SkipBuild` sẽ verify đủ bộ image tag trong ECR trước khi deploy release
+- `deploy.ps1 -SkipBuild` sẽ tự gỡ Helm release nếu phát hiện release cũ đang kẹt trạng thái `pending-*`
 - `infra` mặc định dùng ECR của team cho toàn bộ app services
-- repo đã được vá thêm lỗi rõ ràng ở `currency` và thiếu folder `rel` của `flagd-ui`
+- repo đã được vá thêm lỗi rõ ràng ở `currency`
+- `flagd-ui` đã được vá để chạy đúng theo Phoenix release runtime, tránh lỗi thiếu `/app/bin/server`
 
 ## 9. Điều kiện để flow chạy trơn
 

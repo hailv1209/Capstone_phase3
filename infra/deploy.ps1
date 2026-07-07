@@ -77,6 +77,85 @@ function Wait-ForWorkloads {
   }
 }
 
+function Ensure-HelmReleaseImported {
+  param(
+    [string]$TerraformVarsFile,
+    [string]$Namespace,
+    [string]$ReleaseName
+  )
+
+  $stateListOutput = terraform state list
+  if ($LASTEXITCODE -ne 0) {
+    throw "terraform state list failed while checking Helm release state."
+  }
+
+  if ($stateListOutput | Select-String -SimpleMatch "helm_release.techx_corp[0]") {
+    return
+  }
+
+  $helmSecrets = kubectl -n $Namespace get secret -l "owner=helm,name=$ReleaseName" --no-headers
+  if ($LASTEXITCODE -ne 0) {
+    throw "kubectl get secret failed while checking existing Helm release $ReleaseName."
+  }
+
+  if ([string]::IsNullOrWhiteSpace($helmSecrets)) {
+    return
+  }
+
+  Write-Host "==> import existing Helm release into Terraform state: $Namespace/$ReleaseName"
+  terraform import -var-file $TerraformVarsFile -var "deploy_release=true" 'helm_release.techx_corp[0]' "$Namespace/$ReleaseName" | Out-Host
+  if ($LASTEXITCODE -ne 0) {
+    throw "terraform import failed for existing Helm release $Namespace/$ReleaseName."
+  }
+}
+
+function Reset-PendingHelmRelease {
+  param(
+    [string]$Namespace,
+    [string]$ReleaseName
+  )
+
+  $pendingSecrets = kubectl -n $Namespace get secret -l "owner=helm,name=$ReleaseName" `
+    -o jsonpath="{range .items[*]}{.metadata.name}{'|'}{.metadata.labels.status}{'\n'}{end}"
+  if ($LASTEXITCODE -ne 0) {
+    throw "kubectl get secret failed while checking Helm release status for $ReleaseName."
+  }
+
+  if ([string]::IsNullOrWhiteSpace($pendingSecrets)) {
+    return
+  }
+
+  $hasPendingRelease = $false
+  foreach ($line in ($pendingSecrets -split "`r?`n")) {
+    if ($line -match "\|pending-") {
+      $hasPendingRelease = $true
+      break
+    }
+  }
+
+  if (-not $hasPendingRelease) {
+    return
+  }
+
+  Write-Host "==> reset Helm release stuck in pending state: $Namespace/$ReleaseName"
+  helm uninstall $ReleaseName -n $Namespace | Out-Host
+  if ($LASTEXITCODE -ne 0) {
+    throw "helm uninstall failed for pending release $Namespace/$ReleaseName."
+  }
+
+  $stateListOutput = terraform state list
+  if ($LASTEXITCODE -ne 0) {
+    throw "terraform state list failed while resetting pending Helm release."
+  }
+
+  if ($stateListOutput | Select-String -SimpleMatch "helm_release.techx_corp[0]") {
+    terraform state rm 'helm_release.techx_corp[0]' | Out-Host
+    if ($LASTEXITCODE -ne 0) {
+      throw "terraform state rm failed for helm_release.techx_corp[0]."
+    }
+  }
+}
+
 function Login-Ecr {
   param(
     [string]$Region,
@@ -235,6 +314,9 @@ try {
   }
 
   if (-not $SkipRelease) {
+    Reset-PendingHelmRelease -Namespace $namespace -ReleaseName $releaseName
+    Ensure-HelmReleaseImported -TerraformVarsFile $resolvedVarsFile -Namespace $namespace -ReleaseName $releaseName
+
     Write-Host "==> phase 2: deploy Helm release"
     Invoke-External -Description "terraform apply phase 2" -Command {
       terraform apply -auto-approve -var-file $resolvedVarsFile -var "deploy_release=true"
