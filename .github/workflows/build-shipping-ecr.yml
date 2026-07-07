@@ -108,8 +108,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker buildx imagetools inspect "${{ steps.refs.outputs.primary_ref }}" | tee /tmp/shipping-manifest.txt
-          grep -q "linux/amd64" /tmp/shipping-manifest.txt
+          docker buildx imagetools inspect --raw "${{ steps.refs.outputs.primary_ref }}" | tee /tmp/shipping-manifest.json
+          grep -q '"architecture":"amd64"' /tmp/shipping-manifest.json
+          grep -q '"os":"linux"' /tmp/shipping-manifest.json
 
       - name: Summary
         shell: bash
