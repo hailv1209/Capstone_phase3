@@ -149,7 +149,6 @@ EOT
     components = merge(
       {
         flagd = {
-          sidecarContainers = []
           command = [
             "/flagd-build",
             "start",

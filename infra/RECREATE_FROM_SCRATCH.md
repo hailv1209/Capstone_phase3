@@ -79,6 +79,7 @@ Baseline hiện tại cần tối thiểu các tag:
 - `1.0-checkout`
 - `1.0-currency`
 - `1.0-email`
+- `1.0-flagd-ui`
 - `1.0-fraud-detection`
 - `1.0-frontend`
 - `1.0-frontend-proxy`
@@ -145,19 +146,7 @@ Mở:
 
 Đây là trường hợp phải build lại image trước.
 
-### Bước 1: kiểm tra `terraform.tfvars`
-
-Giữ baseline như sau:
-
-```hcl
-default_image_tag          = "1.0"
-shipping_image_tag         = "1.0-shipping"
-bootstrap_from_seed_images = false
-enable_shipping_hotfix     = false
-deploy_release             = false
-```
-
-### Bước 2: dựng lại cloud nền tảng trước
+### Bước 1: dựng lại cloud nền tảng trước
 
 Làm bước này để Terraform tạo lại EKS và ECR repository:
 
@@ -166,7 +155,7 @@ terraform init
 terraform apply -auto-approve -var-file .\terraform.tfvars -var "deploy_release=false"
 ```
 
-### Bước 3: build lại image lên ECR
+### Bước 2: build lại image lên ECR
 
 Hướng khuyến nghị là GitHub Actions.
 
@@ -181,9 +170,9 @@ Input khuyến nghị:
 - `base_image_tag = 1.0`
 - `push_sha_tags = true`
 
-Chờ workflow push đủ bộ image `1.0-*` lên ECR.
+Chờ workflow push đủ bộ image `1.0-*` lên ECR, bao gồm cả `1.0-flagd-ui`.
 
-### Bước 4: deploy release
+### Bước 3: deploy release
 
 Sau khi image đã có đủ:
 
@@ -191,7 +180,7 @@ Sau khi image đã có đủ:
 .\deploy.ps1 -SkipBuild
 ```
 
-### Bước 5: kiểm tra sau deploy
+### Bước 4: kiểm tra sau deploy
 
 ```powershell
 kubectl -n techx-tf3 get pods
@@ -256,7 +245,7 @@ Sau đó chạy GitHub Actions `Build Platform To ECR`, rồi:
 1. `deploy.ps1 -SkipBuild` không tự build image.
 2. `deploy.ps1 -SkipBuild` chỉ deploy được nếu image đã có trong ECR.
 3. Nếu `terraform destroy` xóa luôn ECR, bạn bắt buộc phải push lại image trước khi deploy app.
-4. Baseline release hiện tại không bắt buộc `flagd-ui` sidecar để storefront chạy và nghiệm thu.
+4. Baseline release hiện bật `flagd-ui` sidecar để nhóm có thể vào UI local trong cluster khi cần quan sát hoặc double-check trước khi BTC thao tác với flag trung tâm.
 5. Nếu `terraform destroy` fail ở ECR vì repo không rỗng, cần xóa image trong ECR trước rồi destroy lại.
 
 ## 10. Câu trả lời ngắn nhất

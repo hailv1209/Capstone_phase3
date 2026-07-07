@@ -88,7 +88,7 @@ Script này sẽ:
 6. chờ rollout các deployment chính
 7. in danh sách pod để sẵn sàng port-forward/nghiệm thu
 
-Lưu ý: baseline release hiện tắt `flagd-ui` sidecar trong cấu hình Terraform, nên `deploy.ps1 -SkipBuild` chỉ verify các image thật sự cần cho release đó.
+Lưu ý: baseline release hiện bật lại `flagd-ui` sidecar để nhóm có thể mở UI local trong cluster khi cần double-check trước khi BTC thao tác với flag trung tâm. Cấu hình hiện tại vẫn không cấp đường ghi ngược vào nguồn flag trung tâm.
 
 Đây là đường chạy nên dùng cho máy local yếu.
 

@@ -181,6 +181,7 @@ try {
     "checkout",
     "currency",
     "email",
+    "flagd-ui",
     "fraud-detection",
     "frontend",
     "frontend-proxy",
