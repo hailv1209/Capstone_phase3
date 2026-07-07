@@ -9,3 +9,8 @@ override.tf.json
 .env.override
 techx-corp-platform/.env.override
 infra/terraform.tfvars
+.github/modernize/
+techx-corp-platform/src/ad/.gradle/
+techx-corp-platform/src/ad/build/
+techx-corp-platform/src/fraud-detection/.gradle/
+techx-corp-platform/src/fraud-detection/build/
