@@ -1,0 +1,199 @@
+name: Build Platform To ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region containing the target ECR repository
+        required: true
+        default: us-east-1
+      ecr_repository:
+        description: Target ECR repository name
+        required: true
+        default: techx-corp
+      base_image_tag:
+        description: Base image tag prefix. Images are pushed as <base>-<service>
+        required: true
+        default: 1.0
+      push_sha_tags:
+        description: Also publish SHA-based tags for every service
+        required: true
+        type: boolean
+        default: true
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/build-platform-ecr.yml"
+      - "techx-corp-platform/docker-compose.yml"
+      - "techx-corp-platform/src/**"
+      - "techx-corp-platform/pb/**"
+      - "techx-corp-platform/buildkitd.toml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: accounting
+            dockerfile: ./techx-corp-platform/src/accounting/Dockerfile
+            build_args: ""
+          - name: ad
+            dockerfile: ./techx-corp-platform/src/ad/Dockerfile
+            build_args: |
+              OTEL_JAVA_AGENT_VERSION=2.23.0
+          - name: cart
+            dockerfile: ./techx-corp-platform/src/cart/src/Dockerfile
+            build_args: ""
+          - name: checkout
+            dockerfile: ./techx-corp-platform/src/checkout/Dockerfile
+            build_args: ""
+          - name: currency
+            dockerfile: ./techx-corp-platform/src/currency/Dockerfile
+            build_args: |
+              OPENTELEMETRY_CPP_VERSION=1.24.0
+          - name: email
+            dockerfile: ./techx-corp-platform/src/email/Dockerfile
+            build_args: ""
+          - name: flagd-ui
+            dockerfile: ./techx-corp-platform/src/flagd-ui/Dockerfile
+            build_args: ""
+          - name: fraud-detection
+            dockerfile: ./techx-corp-platform/src/fraud-detection/Dockerfile
+            build_args: |
+              OTEL_JAVA_AGENT_VERSION=2.23.0
+          - name: frontend
+            dockerfile: ./techx-corp-platform/src/frontend/Dockerfile
+            build_args: ""
+          - name: frontend-proxy
+            dockerfile: ./techx-corp-platform/src/frontend-proxy/Dockerfile
+            build_args: ""
+          - name: image-provider
+            dockerfile: ./techx-corp-platform/src/image-provider/Dockerfile
+            build_args: ""
+          - name: kafka
+            dockerfile: ./techx-corp-platform/src/kafka/Dockerfile
+            build_args: |
+              OTEL_JAVA_AGENT_VERSION=2.23.0
+          - name: llm
+            dockerfile: ./techx-corp-platform/src/llm/Dockerfile
+            build_args: ""
+          - name: load-generator
+            dockerfile: ./techx-corp-platform/src/load-generator/Dockerfile
+            build_args: ""
+          - name: payment
+            dockerfile: ./techx-corp-platform/src/payment/Dockerfile
+            build_args: ""
+          - name: product-catalog
+            dockerfile: ./techx-corp-platform/src/product-catalog/Dockerfile
+            build_args: ""
+          - name: product-reviews
+            dockerfile: ./techx-corp-platform/src/product-reviews/Dockerfile
+            build_args: ""
+          - name: quote
+            dockerfile: ./techx-corp-platform/src/quote/Dockerfile
+            build_args: ""
+          - name: recommendation
+            dockerfile: ./techx-corp-platform/src/recommendation/Dockerfile
+            build_args: ""
+          - name: shipping
+            dockerfile: ./techx-corp-platform/src/shipping/Dockerfile
+            build_args: ""
+    env:
+      AWS_REGION: ${{ inputs.aws_region || 'us-east-1' }}
+      ECR_REPOSITORY: ${{ inputs.ecr_repository || 'techx-corp' }}
+      BASE_IMAGE_TAG: ${{ inputs.base_image_tag || '1.0' }}
+      PUSH_SHA_TAGS: ${{ inputs.push_sha_tags != false }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        if: ${{ vars.AWS_ROLE_TO_ASSUME != '' || secrets.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME || secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials via secrets
+        if: ${{ vars.AWS_ROLE_TO_ASSUME == '' && secrets.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Ensure ECR repository exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ecr describe-repositories --repository-names "${ECR_REPOSITORY}" --region "${AWS_REGION}" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "${ECR_REPOSITORY}" --region "${AWS_REGION}" >/dev/null
+
+      - name: Resolve image refs
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="${{ steps.login-ecr.outputs.registry }}"
+          image="${registry}/${ECR_REPOSITORY}"
+          primary_tag="${BASE_IMAGE_TAG}-${{ matrix.service.name }}"
+          sha_tag="${GITHUB_SHA::12}-${{ matrix.service.name }}"
+
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "primary_ref=${image}:${primary_tag}" >> "$GITHUB_OUTPUT"
+          echo "sha_ref=${image}:${sha_tag}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${image}:${primary_tag}"
+            if [ "${PUSH_SHA_TAGS}" = "true" ]; then
+              echo "${image}:${sha_tag}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push service from source
+        uses: docker/build-push-action@v6
+        with:
+          context: ./techx-corp-platform
+          file: ${{ matrix.service.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          build-args: ${{ matrix.service.build_args }}
+          tags: ${{ steps.refs.outputs.tags }}
+
+      - name: Verify manifest contains linux/amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "${{ steps.refs.outputs.primary_ref }}" | tee /tmp/manifest.txt
+          grep -q "linux/amd64" /tmp/manifest.txt
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## Built ${{ matrix.service.name }}"
+            echo ""
+            echo "- ECR image: \`${{ steps.refs.outputs.primary_ref }}\`"
+            if [ "${PUSH_SHA_TAGS}" = "true" ]; then
+              echo "- SHA image: \`${{ steps.refs.outputs.sha_ref }}\`"
+            fi
+            echo "- Dockerfile: \`${{ matrix.service.dockerfile }}\`"
+            echo "- Platform: \`linux/amd64\`"
+          } >> "$GITHUB_STEP_SUMMARY"

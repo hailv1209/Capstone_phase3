@@ -1,0 +1,126 @@
+name: Build Shipping To ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region containing the target ECR repository
+        required: true
+        default: us-east-1
+      ecr_repository:
+        description: Target ECR repository name
+        required: true
+        default: techx-corp
+      image_tag:
+        description: Shipping image tag to publish
+        required: true
+        default: 1.0-shipping
+      push_sha_tag:
+        description: Also push the commit SHA tag
+        required: true
+        type: boolean
+        default: true
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/build-shipping-ecr.yml"
+      - "techx-corp-platform/src/shipping/**"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ inputs.aws_region || 'us-east-1' }}
+      ECR_REPOSITORY: ${{ inputs.ecr_repository || 'techx-corp' }}
+      IMAGE_TAG: ${{ inputs.image_tag || '1.0-shipping' }}
+      PUSH_SHA_TAG: ${{ inputs.push_sha_tag != false }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials via secrets
+        if: ${{ secrets.AWS_ROLE_TO_ASSUME == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve image refs
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="${{ steps.login-ecr.outputs.registry }}"
+          repo="${ECR_REPOSITORY}"
+          image="${registry}/${repo}"
+          sha_tag="${GITHUB_SHA::12}-shipping"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "primary_ref=${image}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha_ref=${image}:${sha_tag}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<EOF"
+            echo "${image}:${IMAGE_TAG}"
+            if [ "${PUSH_SHA_TAG}" = "true" ]; then
+              echo "${image}:${sha_tag}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Ensure ECR repository exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ecr describe-repositories --repository-names "${ECR_REPOSITORY}" --region "${AWS_REGION}" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "${ECR_REPOSITORY}" --region "${AWS_REGION}" >/dev/null
+
+      - name: Build and push shipping from source
+        uses: docker/build-push-action@v6
+        with:
+          context: ./techx-corp-platform
+          file: ./techx-corp-platform/src/shipping/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ steps.refs.outputs.tags }}
+
+      - name: Verify manifest contains linux/amd64
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "${{ steps.refs.outputs.primary_ref }}" | tee /tmp/shipping-manifest.txt
+          grep -q "linux/amd64" /tmp/shipping-manifest.txt
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "## Shipping image published"
+            echo ""
+            echo "- ECR image: \`${{ steps.refs.outputs.primary_ref }}\`"
+            if [ "${PUSH_SHA_TAG}" = "true" ]; then
+              echo "- SHA image: \`${{ steps.refs.outputs.sha_ref }}\`"
+            fi
+            echo "- Platform: \`linux/amd64\`"
+            echo "- Source: \`techx-corp-platform/src/shipping\`"
+          } >> "$GITHUB_STEP_SUMMARY"
